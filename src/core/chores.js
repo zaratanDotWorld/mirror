@@ -143,12 +143,14 @@ exports.toPrefKey = function (pref) {
 // Chore Values
 
 exports.getChoreValue = async function (choreId, startTime, endTime) {
-  return db('ChoreValue')
+  const choreValue = await db('ChoreValue')
     .where({ choreId })
     .where('valuedAt', '>', startTime)
     .where('valuedAt', '<=', endTime)
     .sum('value')
     .first();
+
+  return choreValue.sum || 0;
 };
 
 exports.getCurrentChoreValue = async function (choreId, currentTime, excludedClaimId = null) {
@@ -163,7 +165,7 @@ exports.getCurrentChoreValues = async function (houseId, currentTime) {
 
   for (const chore of chores) {
     const choreValue = await exports.getCurrentChoreValue(chore.id, currentTime);
-    choreValues.push({ id: chore.id, name: chore.name, value: choreValue.sum || 0 });
+    choreValues.push({ id: chore.id, name: chore.name, value: choreValue });
   }
 
   return choreValues;
@@ -293,7 +295,7 @@ exports.getLatestChoreClaim = async function (choreId, currentTime, excludedClai
 };
 
 exports.claimChore = async function (houseId, choreId, claimedBy, claimedAt, timeSpent) {
-  const choreValue = (await exports.getCurrentChoreValue(choreId, claimedAt)).sum;
+  const choreValue = await exports.getCurrentChoreValue(choreId, claimedAt);
 
   assert(choreValue, 'Cannot claim a zero-value chore!');
 
@@ -316,7 +318,7 @@ exports.claimChore = async function (houseId, choreId, claimedBy, claimedAt, tim
 exports.resolveChoreClaim = async function (claimId, resolvedAt) {
   const choreClaim = await exports.getChoreClaim(claimId);
   const valid = await Polls.isPollValid(choreClaim.pollId, resolvedAt);
-  const value = (await exports.getCurrentChoreValue(choreClaim.choreId, choreClaim.claimedAt, claimId)).sum;
+  const value = await exports.getCurrentChoreValue(choreClaim.choreId, choreClaim.claimedAt, claimId);
 
   return db('ChoreClaim')
     .where({ id: claimId, resolvedAt: null }) // Cannot resolve twice
@@ -339,19 +341,23 @@ exports.resolveChoreClaims = async function (houseId, now) {
 };
 
 exports.getChorePoints = async function (claimedBy, choreId, startTime, endTime) {
-  return db('ChoreClaim')
+  const chorePoints = await db('ChoreClaim')
     .where({ claimedBy, choreId, valid: true })
     .whereBetween('claimedAt', [ startTime, endTime ])
     .sum('value')
     .first();
+
+  return chorePoints.sum || 0;
 };
 
 exports.getAllChorePoints = async function (claimedBy, startTime, endTime) {
-  return db('ChoreClaim')
+  const chorePoints = await db('ChoreClaim')
     .where({ claimedBy, valid: true })
     .whereBetween('claimedAt', [ startTime, endTime ])
     .sum('value')
     .first();
+
+  return chorePoints.sum || 0;
 };
 
 // Chore Breaks
@@ -473,7 +479,7 @@ exports.addChorePenalty = async function (houseId, residentId, currentTime) {
 // Chore Stats
 
 exports.getChoreStats = async function (residentId, startTime, endTime) {
-  const pointsEarned = (await exports.getAllChorePoints(residentId, startTime, endTime)).sum || 0;
+  const pointsEarned = await exports.getAllChorePoints(residentId, startTime, endTime);
   const workingPercentage = await exports.getWorkingResidentPercentage(residentId, endTime);
   const pointsOwed = pointsPerResident * workingPercentage;
   const completionPct = (pointsOwed) ? pointsEarned / pointsOwed : 1;
@@ -511,7 +517,7 @@ exports.giftChorePoints = async function (houseId, gifterId, recipientId, gifted
   const monthStart = getMonthStart(giftedAt);
   const gifterChorePoints = await exports.getAllChorePoints(gifterId, monthStart, giftedAt);
 
-  assert(gifterChorePoints.sum >= value, 'Cannot gift more than the points balance!');
+  assert(gifterChorePoints >= value, 'Cannot gift more than the points balance!');
 
   await db('ChoreClaim')
     .insert([
@@ -595,7 +601,7 @@ exports.resetChorePoints = async function (houseId, now) {
   const monthStart = getMonthStart(now);
   const resetResidentClaims = await Promise.all(residents.map(async (r) => {
     const userPoints = await exports.getAllChorePoints(r.slackId, monthStart, now);
-    return { houseId, claimedBy: r.slackId, value: -(userPoints.sum || 0), claimedAt: now }; // choreId = null
+    return { houseId, claimedBy: r.slackId, value: -userPoints, claimedAt: now }; // choreId = null
   }));
 
   const choreValues = await exports.getUpdatedChoreValues(houseId, now);

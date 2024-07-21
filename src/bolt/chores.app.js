@@ -319,8 +319,8 @@ app.view('chores-claim-callback', async ({ ack, body }) => {
   const { minVotes } = await Polls.getPoll(claim.pollId);
 
   // Get latest point values
-  achivementPoints = (achivementPoints.sum || 0) + claim.value;
-  monthlyPoints = (monthlyPoints.sum || 0) + claim.value;
+  monthlyPoints = monthlyPoints + claim.value;
+  achivementPoints = achivementPoints + claim.value;
 
   const text = 'Someone just completed a chore';
   const blocks = views.choresClaimCallbackView(claim, chore.name, minVotes, achivementPoints, monthlyPoints);
@@ -468,7 +468,7 @@ app.action('chores-gift', async ({ ack, body }) => {
   const monthStart = getMonthStart(now);
   const chorePoints = await Chores.getAllChorePoints(residentId, monthStart, now);
 
-  const view = views.choresGiftView(chorePoints.sum || 0);
+  const view = views.choresGiftView(chorePoints);
   await common.openView(app, choresConf.oauth, body.trigger_id, view);
 
   await ack();

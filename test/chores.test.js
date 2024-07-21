@@ -244,10 +244,10 @@ describe('Chores', async () => {
       const startTime = new Date(now.getTime() - MINUTE);
 
       const dishesValue = await Chores.getChoreValue(dishes.id, startTime, endTime);
-      expect(dishesValue.sum).to.equal(15);
+      expect(dishesValue).to.equal(15);
 
       const sweepingValue = await Chores.getChoreValue(sweeping.id, startTime, endTime);
-      expect(sweepingValue.sum).to.equal(20);
+      expect(sweepingValue).to.equal(20);
     });
 
     it('can set and query for all current chore values', async () => {
@@ -705,15 +705,15 @@ describe('Chores', async () => {
       let chorePoints;
       // Can get all chore points this month
       chorePoints = await Chores.getAllChorePoints(RESIDENT1, monthStart, now);
-      expect(chorePoints.sum).to.equal(30);
+      expect(chorePoints).to.equal(30);
 
       // Can get chore-specific points this month
       chorePoints = await Chores.getChorePoints(RESIDENT1, dishes.id, monthStart, now);
-      expect(chorePoints.sum).to.equal(10);
+      expect(chorePoints).to.equal(10);
 
       // But nothing next month
       chorePoints = await Chores.getAllChorePoints(RESIDENT1, y2k, monthStart);
-      expect(chorePoints.sum).to.equal(null);
+      expect(chorePoints).to.equal(0);
     });
 
     it('can calculate chore penalties', async () => {
@@ -1270,8 +1270,8 @@ describe('Chores', async () => {
       const monthStart = getMonthStart(now);
       const chorePoints1 = await Chores.getAllChorePoints(RESIDENT1, monthStart, now);
       const chorePoints2 = await Chores.getAllChorePoints(RESIDENT2, monthStart, now);
-      expect(chorePoints1.sum).to.equal(4);
-      expect(chorePoints2.sum).to.equal(6);
+      expect(chorePoints1).to.equal(4);
+      expect(chorePoints2).to.equal(6);
     });
 
     it('cannot gift more than your current balance', async () => {
@@ -1291,8 +1291,8 @@ describe('Chores', async () => {
       const monthStart = getMonthStart(now);
       const chorePoints1 = await Chores.getAllChorePoints(RESIDENT1, monthStart, challengeEnd);
       const chorePoints2 = await Chores.getAllChorePoints(RESIDENT2, monthStart, challengeEnd);
-      expect(chorePoints1.sum).to.equal(-6);
-      expect(chorePoints2.sum).to.equal(6);
+      expect(chorePoints1).to.equal(-6);
+      expect(chorePoints2).to.equal(6);
     });
   });
 
