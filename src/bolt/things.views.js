@@ -91,7 +91,7 @@ _For more details on *Things* functionality, read the <${DOCS_URL}|manual>._
   };
 };
 
-exports.thingsHomeView = function (accounts, isActive) {
+exports.thingsHomeView = function (isActive, accounts) {
   const getMoneybags = sum => ':moneybag:'.repeat(Math.round(Math.sqrt(sum) / 10));
 
   const header = 'Welcome to Things';

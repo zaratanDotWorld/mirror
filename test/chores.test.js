@@ -1265,6 +1265,12 @@ describe('Chores', async () => {
       expect(choreStats.pointsEarned).to.equal(10);
       expect(choreStats.pointsOwed).to.equal(0);
       expect(choreStats.completionPct).to.equal(1);
+
+      // Returns default values for non-existent resident
+      choreStats = await Chores.getChoreStats('', feb1, mar1);
+      expect(choreStats.pointsEarned).to.equal(0);
+      expect(choreStats.pointsOwed).to.equal(0);
+      expect(choreStats.completionPct).to.equal(1);
     });
 
     it('can get house chore stats', async () => {

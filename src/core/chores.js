@@ -568,7 +568,7 @@ exports.getWorkingResidentCount = async function (houseId, now) {
 // TODO: Allow caller to supply startTime and endTime
 exports.getWorkingResidentPercentage = async function (residentId, now) {
   const resident = await Admin.getResident(residentId);
-  if (!resident.activeAt) { return 0; }
+  if (!resident || !resident.activeAt) { return 0; }
 
   const monthStart = getMonthStart(now);
   const monthEnd = getMonthEnd(now);

@@ -50,7 +50,7 @@ _For more details on *Hearts* functionality, read the <${DOCS_URL}|manual>._
   };
 };
 
-exports.heartsHomeView = function (numHearts, maxHearts, isActive) {
+exports.heartsHomeView = function (isActive, numHearts, maxHearts) {
   const header = 'Welcome to Hearts';
   const textA = `We use *<${DOCS_URL}|Hearts>* to keep each other accountable.\n\n` +
     'Everyone starts with *5 hearts*. ' +

@@ -155,6 +155,11 @@ describe('Admin', async () => {
       const resident = await Admin.getResident(RESIDENT1);
       expect(resident.activeAt).to.equal(null);
     });
+
+    it('can return inactive for a non-existent resident', async () => {
+      const isActive = await Admin.isActive('', now);
+      expect(isActive).to.be.undefined;
+    });
   });
 
   describe('utility functions', async () => {

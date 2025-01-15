@@ -10,7 +10,7 @@ const { App, LogLevel } = require('@slack/bolt');
 
 const { Admin, Polls, Chores } = require('../core/index');
 const { displayThreshold, breakMinDays, achievementWindow } = require('../config');
-const { YAY, DAY, CHORES_CONF, SLACKBOT } = require('../constants');
+const { YAY, DAY, CHORES_CONF, CHORES_IDX } = require('../constants');
 const { getMonthStart, getMonthEnd, shiftDate, getPrevMonthEnd, sleep } = require('../utils');
 
 const common = require('./common');
@@ -82,8 +82,8 @@ app.event('user_change', async ({ payload }) => {
 
   console.log(`chores user_change - ${user.team_id} x ${user.id}`);
 
-  await sleep(0 * 1000);
-  await common.syncWorkspaceMember(user.team_id, user, now);
+  await sleep(CHORES_IDX * 1000);
+  await common.pruneWorkspaceMember(user.team_id, user, now);
 });
 
 // Publish the app home
@@ -155,7 +155,7 @@ app.command('/chores-sync', async ({ ack, command }) => {
   const commandName = '/chores-sync';
   const { now, houseId } = common.beginCommand(commandName, command);
 
-  const text = await common.syncWorkspaceMembers(app, choresConf.oauth, houseId, now);
+  const text = await common.pruneWorkspaceMembers(app, choresConf.oauth, houseId, now);
   await common.replyEphemeral(app, choresConf.oauth, command, text);
 
   await ack();
@@ -163,10 +163,9 @@ app.command('/chores-sync', async ({ ack, command }) => {
 
 app.command('/chores-channel', async ({ ack, command }) => {
   const commandName = '/chores-channel';
-  const { now, houseId } = common.beginCommand(commandName, command);
+  common.beginCommand(commandName, command);
 
   await common.setChannel(app, choresConf.oauth, CHORES_CONF, command);
-  await common.syncWorkspaceMembers(app, choresConf.oauth, houseId, now);
 
   await ack();
 });
@@ -222,9 +221,8 @@ app.view('chores-activate-callback', async ({ ack, body }) => {
 
   if (selectAll) {
     // Exclude bots and deleted users
-    residentIds = (await app.client.users.list({ token: choresConf.oauth.bot.token }))
-      .members
-      .filter(member => !(member.is_bot || member.id === SLACKBOT || member.deleted))
+    residentIds = (await common.getWorkspaceMembers(app, choresConf.oauth))
+      .filter(member => !member.deleted)
       .map(member => member.id);
 
     residentsText = `all ${residentIds.length} residents`;
@@ -238,12 +236,12 @@ app.view('chores-activate-callback', async ({ ack, body }) => {
 
   if (activate) {
     for (const residentId of residentIds) {
-      await Admin.activateResident(houseId, residentId, now);
+      await common.activateResident(houseId, residentId, now);
     }
     text = `Activated ${residentsText || 'nobody'} :fire:`;
   } else {
     for (const residentId of residentIds) {
-      await Admin.deactivateResident(houseId, residentId);
+      await common.deactivateResident(houseId, residentId);
     }
     text = `Deactivated ${residentsText || 'nobody'} :ice_cube:`;
   }
