@@ -80,13 +80,17 @@ describe('Hearts', async () => {
       expect(hearts[1].sum).to.equal(1);
     });
 
-    it('can exclude exempt users from the hearts list', async () => {
+    it('can exclude inactive users from the hearts list', async () => {
       await Hearts.generateHearts(HOUSE, RESIDENT1, HEART_UNKNOWN, now, 2);
       await Hearts.generateHearts(HOUSE, RESIDENT2, HEART_UNKNOWN, now, 1);
 
-      await Admin.exemptResident(HOUSE, RESIDENT2, now);
+      let hearts;
+      hearts = await Hearts.getHouseHearts(HOUSE, now);
+      expect(hearts.length).to.equal(2);
 
-      const hearts = await Hearts.getHouseHearts(HOUSE, now);
+      await Admin.deactivateResident(HOUSE, RESIDENT2);
+
+      hearts = await Hearts.getHouseHearts(HOUSE, now);
       expect(hearts.length).to.equal(1);
     });
 
@@ -400,11 +404,6 @@ describe('Hearts', async () => {
       // Challenge reducing to 1 hearts, needs 70% of 5 residents = 4
       minVotes = await Hearts.getChallengeMinVotes(HOUSE, RESIDENT2, 4, now);
       expect(minVotes).to.equal(4);
-
-      // Exempt users are not counted
-      await testHelpers.createExemptUsers(HOUSE, 10, now);
-      minVotes = await Hearts.getChallengeMinVotes(HOUSE, RESIDENT2, 2, soon);
-      expect(minVotes).to.equal(2);
     });
 
     it('cannot challenge oneself', async () => {

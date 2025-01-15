@@ -7,7 +7,7 @@ if (process.env.NODE_ENV === 'production') {
 const { App, LogLevel } = require('@slack/bolt');
 
 const { Admin, Polls, Things } = require('../core/index');
-const { YAY, DAY, THINGS_CONF } = require('../constants');
+const { YAY, DAY, THINGS_CONF, THINGS_IDX } = require('../constants');
 const { sleep } = require('../utils');
 
 const common = require('./common');
@@ -83,8 +83,8 @@ app.event('user_change', async ({ payload }) => {
 
   console.log(`things user_change - ${user.team_id} x ${user.id}`);
 
-  await sleep(3 * 1000);
-  await common.syncWorkspaceMember(user.team_id, user, new Date());
+  await sleep(THINGS_IDX * 1000);
+  await common.pruneWorkspaceMember(user.team_id, user);
 });
 
 // Publish the app home
@@ -93,14 +93,13 @@ app.event('app_home_opened', async ({ body, event }) => {
   if (event.tab !== 'home') { return; }
 
   const { now, houseId, residentId } = common.beginHome('things', body, event);
-  await Admin.activateResident(houseId, residentId, now);
 
   let view;
   if (thingsConf.channel) {
+    const isActive = await Admin.isActive(residentId, now);
     const activeAccounts = await Things.getActiveAccounts(houseId, now);
-    const exempt = await Admin.isExempt(residentId, now);
 
-    view = views.thingsHomeView(activeAccounts, exempt);
+    view = views.thingsHomeView(isActive, activeAccounts);
   } else {
     view = views.thingsIntroView();
   }
@@ -302,10 +301,10 @@ app.action('things-special', async ({ ack, body }) => {
   const actionName = 'things-special';
   const { now, houseId } = common.beginAction(actionName, body);
 
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
+  const residents = await Admin.getResidents(houseId, now);
   const accounts = await Things.getActiveAccounts(houseId, now);
 
-  const view = views.thingsSpecialBuyView(votingResidents.length, accounts);
+  const view = views.thingsSpecialBuyView(residents.length, accounts);
   await common.openView(app, thingsConf.oauth, body.trigger_id, view);
 
   await ack();

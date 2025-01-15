@@ -159,11 +159,6 @@ describe('Things', async () => {
       // max: ceil( 4 residents * 60% ) = 3
       minVotes = await Things.getThingBuyMinVotes(HOUSE, RESIDENT1, rice.id, 200, now);
       expect(minVotes).to.equal(3);
-
-      // Exempt users are not counted
-      await testHelpers.createExemptUsers(HOUSE, 10, now);
-      minVotes = await Things.getThingBuyMinVotes(HOUSE, RESIDENT1, rice.id, 500, soon);
-      expect(minVotes).to.equal(3);
     });
 
     it('can scale the minimum votes based on hearts', async () => {
@@ -443,11 +438,6 @@ describe('Things', async () => {
       // max: ceil( 4 residents * 60% ) = 3
       minVotes = await Things.getThingBuyMinVotes(HOUSE, RESIDENT1, null, 300, now);
       expect(minVotes).to.equal(3);
-
-      // Exempt users are not counted
-      await testHelpers.createExemptUsers(HOUSE, 10, now);
-      minVotes = await Things.getThingBuyMinVotes(HOUSE, RESIDENT1, null, 500, soon);
-      expect(minVotes).to.equal(3);
     });
 
     it('can get a list of unfulfilled special buys', async () => {
@@ -612,10 +602,12 @@ describe('Things', async () => {
       minVotes = await Things.getThingProposalMinVotes(HOUSE, now);
       expect(minVotes).to.equal(2);
 
-      // Exempt users are not counted
-      await testHelpers.createExemptUsers(HOUSE, 10, now);
-      minVotes = await Things.getThingProposalMinVotes(HOUSE, soon);
-      expect(minVotes).to.equal(2);
+      await Admin.deactivateResident(HOUSE, RESIDENT3, now);
+      await Admin.deactivateResident(HOUSE, RESIDENT4, now);
+
+      // min: ceil( 2 residents * 40% ) = 1
+      minVotes = await Things.getThingProposalMinVotes(HOUSE, now);
+      expect(minVotes).to.equal(1);
     });
 
     it('cannot approve a proposal with insufficient votes', async () => {

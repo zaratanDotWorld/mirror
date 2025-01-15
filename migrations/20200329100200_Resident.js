@@ -5,7 +5,7 @@ exports.up = function(knex, Promise) {
         t.string('slackId').unique().notNull(); // Slack-generated userId, workspace-specific
         t.string('houseId').references('House.slackId').notNull();
         t.timestamp('activeAt');
-        t.timestamp('exemptAt');
+        t.timestamp('exemptAt'); // NOTE: deprecated
     });
 };
 

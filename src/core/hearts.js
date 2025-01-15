@@ -54,7 +54,6 @@ exports.getHouseHearts = async function (houseId, now) {
     .where('Heart.houseId', houseId)
     .where('Heart.generatedAt', '<=', now)
     .where('Resident.activeAt', '<=', now)
-    .where(function () { Admin.residentNotExempt(this, now); })
     .groupBy('Heart.residentId')
     .select('Heart.residentId')
     .sum('Heart.value')
@@ -82,7 +81,7 @@ exports.reviveResident = async function (houseId, residentId, now) {
 };
 
 exports.reviveResidents = async function (houseId, now) {
-  const revivedResidents = (await Admin.getVotingResidents(houseId, now))
+  const revivedResidents = (await Admin.getResidents(houseId, now))
     .map(resident => exports.reviveResident(houseId, resident.slackId, now));
 
   return (await Promise.all(revivedResidents)).flat();
@@ -112,7 +111,7 @@ exports.getRegenAmount = function (currentHearts) {
 };
 
 exports.regenerateHouseHearts = async function (houseId, now) {
-  const houseHearts = (await Admin.getVotingResidents(houseId, now))
+  const houseHearts = (await Admin.getResidents(houseId, now))
     .map(resident => exports.regenerateHearts(houseId, resident.slackId, now));
 
   return (await Promise.all(houseHearts)).flat();
@@ -147,11 +146,11 @@ exports.getUnresolvedChallenges = async function (houseId, challengeeId) {
 };
 
 exports.getChallengeMinVotes = async function (houseId, challengeeId, value, challengedAt) {
-  const votingResidents = await Admin.getVotingResidents(houseId, challengedAt);
+  const residents = await Admin.getResidents(houseId, challengedAt);
   const challengeeHearts = await exports.getHearts(challengeeId, challengedAt);
   return (challengeeHearts - value <= heartsCriticalNum)
-    ? Math.ceil(votingResidents.length * heartsMinPctCritical)
-    : Math.ceil(votingResidents.length * heartsMinPctInitial);
+    ? Math.ceil(residents.length * heartsMinPctCritical)
+    : Math.ceil(residents.length * heartsMinPctInitial);
 };
 
 exports.resolveChallenge = async function (challengeId, resolvedAt) {
@@ -238,8 +237,8 @@ exports.getKarmaRankings = async function (houseId, startTime, endTime) {
 };
 
 exports.getNumKarmaWinners = async function (houseId, startTime, endTime) {
-  const votingResidents = await Admin.getVotingResidents(houseId, endTime);
-  const maxWinners = Math.floor(votingResidents.length / karmaProportion);
+  const residents = await Admin.getResidents(houseId, endTime);
+  const maxWinners = Math.floor(residents.length / karmaProportion);
 
   const karma = await exports.getKarma(houseId, startTime, endTime);
   const uniqueReceivers = (new Set(karma.map(k => k.receiverId))).size;

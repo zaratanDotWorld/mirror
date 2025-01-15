@@ -599,9 +599,12 @@ describe('Chores', async () => {
       const t2 = new Date(t0.getTime() + 20 * DAY);
 
       // Reset activeAt timestamps to t1
-      await Admin.unexemptResident(HOUSE, RESIDENT1, t1);
-      await Admin.unexemptResident(HOUSE, RESIDENT2, t1);
-      await Admin.unexemptResident(HOUSE, RESIDENT3, t1);
+      await Admin.deactivateResident(HOUSE, RESIDENT1);
+      await Admin.deactivateResident(HOUSE, RESIDENT2);
+      await Admin.deactivateResident(HOUSE, RESIDENT3);
+      await Admin.activateResident(HOUSE, RESIDENT1, t1);
+      await Admin.activateResident(HOUSE, RESIDENT2, t1);
+      await Admin.activateResident(HOUSE, RESIDENT3, t1);
 
       let choreValues;
 
@@ -1262,6 +1265,12 @@ describe('Chores', async () => {
       expect(choreStats.pointsEarned).to.equal(10);
       expect(choreStats.pointsOwed).to.equal(0);
       expect(choreStats.completionPct).to.equal(1);
+
+      // Returns default values for non-existent resident
+      choreStats = await Chores.getChoreStats('', feb1, mar1);
+      expect(choreStats.pointsEarned).to.equal(0);
+      expect(choreStats.pointsOwed).to.equal(0);
+      expect(choreStats.completionPct).to.equal(1);
     });
 
     it('can get house chore stats', async () => {
@@ -1398,20 +1407,10 @@ describe('Chores', async () => {
       expect(choreBreaks.length).to.equal(0);
     });
 
-    it('can exclude breaks by inactive and exempt users', async () => {
+    it('can exclude breaks by inactive users', async () => {
       await Chores.addChoreBreak(HOUSE, RESIDENT1, now, tomorrow, '');
 
       let choreBreaks;
-      choreBreaks = await Chores.getChoreBreaks(HOUSE, now);
-      expect(choreBreaks.length).to.equal(1);
-
-      await Admin.exemptResident(HOUSE, RESIDENT1, now);
-
-      choreBreaks = await Chores.getChoreBreaks(HOUSE, now);
-      expect(choreBreaks.length).to.equal(0);
-
-      await Admin.unexemptResident(HOUSE, RESIDENT1, now);
-
       choreBreaks = await Chores.getChoreBreaks(HOUSE, now);
       expect(choreBreaks.length).to.equal(1);
 
@@ -1615,34 +1614,14 @@ describe('Chores', async () => {
       await Chores.addChoreBreak(HOUSE, RESIDENT3, feb22, mar1, '');
       workingPercentage = await Chores.getWorkingResidentPercentage(RESIDENT3, feb1);
       expect(workingPercentage).to.equal(0.5);
-    });
 
-    it('can consider the resident exemptAt when calculating active percentage', async () => {
-      const feb1 = new Date(3000, 1, 1); // February, a 28 day month
-      const feb8 = new Date(feb1.getTime() + 7 * DAY);
-      const feb22 = new Date(feb1.getTime() + 21 * DAY);
-      const mar1 = new Date(feb1.getTime() + 28 * DAY);
-
-      let workingPercentage;
-
-      await Admin.activateResident(HOUSE, RESIDENT3, feb1);
-      await Admin.exemptResident(HOUSE, RESIDENT3, feb22);
-
-      // exemptAt used to create implicit break
+      // If inactive, owes no points
+      await Admin.deactivateResident(HOUSE, RESIDENT3);
       workingPercentage = await Chores.getWorkingResidentPercentage(RESIDENT3, feb1);
-      expect(workingPercentage).to.equal(0.75);
-
-      // Can combine with regular breaks
-      await Chores.addChoreBreak(HOUSE, RESIDENT3, feb8, feb22, '');
-      workingPercentage = await Chores.getWorkingResidentPercentage(RESIDENT3, feb1);
-      expect(workingPercentage).to.equal(0.25);
-
-      // Next month, owes no points
-      workingPercentage = await Chores.getWorkingResidentPercentage(RESIDENT3, mar1);
       expect(workingPercentage).to.equal(0);
     });
 
-    it('can correctly count working residents when someone is exempt', async () => {
+    it('can correctly count working residents when someone is inactive', async () => {
       const twoDays = new Date(now.getTime() + 2 * DAY);
 
       let workingResidentCount;
@@ -1658,13 +1637,9 @@ describe('Chores', async () => {
       workingResidentCount = await Chores.getWorkingResidentCount(HOUSE, twoDays);
       expect(workingResidentCount).to.equal(2);
 
-      await Admin.exemptResident(HOUSE, RESIDENT1, tomorrow);
+      await Admin.deactivateResident(HOUSE, RESIDENT1);
 
       workingResidentCount = await Chores.getWorkingResidentCount(HOUSE, now);
-      expect(workingResidentCount).to.equal(2);
-      workingResidentCount = await Chores.getWorkingResidentCount(HOUSE, tomorrow);
-      expect(workingResidentCount).to.equal(1);
-      workingResidentCount = await Chores.getWorkingResidentCount(HOUSE, twoDays);
       expect(workingResidentCount).to.equal(1);
     });
   });
@@ -1867,7 +1842,6 @@ describe('Chores', async () => {
 
     it('can return the minimum votes for a special chore proposal', async () => {
       await testHelpers.createActiveUsers(HOUSE, 8, now); // 10 active users in total
-      await testHelpers.createExemptUsers(HOUSE, 2, now); // Exempt users don't count
 
       const workingResidentCount = await Chores.getWorkingResidentCount(HOUSE, now);
       expect(workingResidentCount).to.equal(10);
@@ -1903,17 +1877,15 @@ describe('Chores', async () => {
     });
 
     it('can get the minimum votes for a proposal', async () => {
-      await Admin.activateResident(HOUSE, RESIDENT3, now);
-      await Admin.activateResident(HOUSE, RESIDENT4, now);
-
       let minVotes;
 
-      // 40% of 4 residents is 2 upvotes
+      // 40% of 2 residents is 1 upvote
       minVotes = await Chores.getChoreProposalMinVotes(HOUSE, now);
-      expect(minVotes).to.equal(2);
+      expect(minVotes).to.equal(1);
 
-      // Exempt users are not counted
-      await testHelpers.createExemptUsers(HOUSE, 10, now);
+      await Admin.activateResident(HOUSE, RESIDENT3, now);
+
+      // 40% of 3 residents is 2 upvotes
       minVotes = await Chores.getChoreProposalMinVotes(HOUSE, now);
       expect(minVotes).to.equal(2);
     });

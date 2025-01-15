@@ -17,14 +17,6 @@ exports.createActiveUsers = async function (houseId, num, now) {
   }
 };
 
-exports.createExemptUsers = async function (houseId, num, now) {
-  for (let i = 0; i < num; i++) {
-    const residentId = exports.generateSlackId();
-    await Admin.activateResident(houseId, residentId, now);
-    await Admin.exemptResident(houseId, residentId, now);
-  }
-};
-
 exports.resetDb = async function () {
   await db('ThingProposal').del();
   await db('ThingBuy').del();

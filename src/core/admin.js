@@ -46,9 +46,9 @@ exports.houseActive = async function (houseId, table, field, startTime, endTime)
 // Residents
 
 exports.activateResident = async function (houseId, slackId, now) {
-  // No-op if already active or exempt
+  // No-op if already active
   const resident = await exports.getResident(slackId);
-  if (resident && (resident.activeAt || resident.exemptAt)) { return; }
+  if (resident && resident.activeAt) { return; }
 
   const activeAt = truncateHour(now);
 
@@ -63,37 +63,10 @@ exports.deactivateResident = async function (houseId, slackId) {
     .onConflict('slackId').merge();
 };
 
-exports.exemptResident = async function (houseId, slackId, now) {
-  // No-op if already exempt
-  const resident = await exports.getResident(slackId);
-  if (resident && resident.exemptAt && resident.exemptAt <= now) { return; }
-
-  const exemptAt = truncateHour(now);
-
-  return db('Resident')
-    .insert({ houseId, slackId, exemptAt })
-    .onConflict('slackId').merge();
-};
-
-exports.unexemptResident = async function (houseId, slackId, activeAt) {
-  return db('Resident')
-    .insert({ houseId, slackId, activeAt, exemptAt: null })
-    .onConflict('slackId').merge();
-};
-
 exports.getResidents = async function (houseId, now) {
   return db('Resident')
     .where({ houseId })
     .where('activeAt', '<=', now)
-    .select('*');
-};
-
-// Voting residents are active && !exempt
-exports.getVotingResidents = async function (houseId, now) {
-  return db('Resident')
-    .where({ houseId })
-    .where('activeAt', '<=', now)
-    .where(function () { exports.residentNotExempt(this, now); })
     .select('*');
 };
 
@@ -104,14 +77,7 @@ exports.getResident = async function (residentId) {
     .first();
 };
 
-exports.isExempt = async function (residentId, now) {
+exports.isActive = async function (residentId, now) {
   const resident = await exports.getResident(residentId);
-  return Boolean(resident.exemptAt && resident.exemptAt <= now);
-};
-
-// Subqueries
-
-exports.residentNotExempt = function (db, now) {
-  return db.whereNull('Resident.exemptAt')
-    .orWhere('Resident.exemptAt', '>', now);
+  return (resident && resident.activeAt && resident.activeAt <= now);
 };

@@ -292,15 +292,15 @@ exports.getLastChoreValueUpdateTime = async function (houseId, updateTime) {
 };
 
 exports.getAvailablePoints = async function (houseId, startTime, endTime) {
-  const votingResidents = await Admin.getVotingResidents(houseId, endTime);
-  const votingResidentCount = votingResidents.length;
+  const residents = await Admin.getResidents(houseId, endTime);
+  const residentCount = residents.length;
 
   // mp = (u_v * ppr * inf)
-  const monthlyPoints = votingResidentCount * pointsPerResident * inflationFactor;
+  const monthlyPoints = residentCount * pointsPerResident * inflationFactor;
 
   // wr = u_w / u_v
   const workingResidentCount = await exports.getWorkingResidentCount(houseId, endTime);
-  const workingRatio = workingResidentCount / votingResidentCount;
+  const workingRatio = workingResidentCount / residentCount;
 
   const availablePoints = [];
   const finalMonthEnd = getMonthEnd(endTime);
@@ -548,13 +548,12 @@ exports.getChoreBreaks = async function (houseId, now) {
     .where('ChoreBreak.startDate', '<=', now)
     .where('ChoreBreak.endDate', '>', now)
     .where('Resident.activeAt', '<=', now)
-    .where(function () { Admin.residentNotExempt(this, now); })
     .returning('*');
 };
 
 // Working residents are voting residents not on break
 exports.getWorkingResidents = async function (houseId, now) {
-  const residents = await Admin.getVotingResidents(houseId, now);
+  const residents = await Admin.getResidents(houseId, now);
   const choreBreaks = await exports.getChoreBreaks(houseId, now);
 
   const breakSet = new Set(choreBreaks.map(cb => cb.residentId));
@@ -569,6 +568,8 @@ exports.getWorkingResidentCount = async function (houseId, now) {
 // TODO: Allow caller to supply startTime and endTime
 exports.getWorkingResidentPercentage = async function (residentId, now) {
   const resident = await Admin.getResident(residentId);
+  if (!resident || !resident.activeAt) { return 0; }
+
   const monthStart = getMonthStart(now);
   const monthEnd = getMonthEnd(now);
 
@@ -594,11 +595,6 @@ exports.getWorkingResidentPercentage = async function (residentId, now) {
     const activeAt = getDateStart(resident.activeAt);
     choreBreaks.push({ startDate: monthStart, endDate: activeAt });
   }
-  // Add an implicit break after exemptAt
-  if (resident.exemptAt && resident.exemptAt < monthEnd) {
-    const exemptAt = getDateStart(resident.exemptAt);
-    choreBreaks.push({ startDate: exemptAt, endDate: monthEnd });
-  }
 
   // TODO: implement this more efficiently... currently O(n) but could probably be O(1)
   const daysInMonth = monthEnd.getDate();
@@ -619,7 +615,7 @@ exports.getWorkingResidentPercentage = async function (residentId, now) {
 
 exports.addChorePenalties = async function (houseId, now) {
   // TODO: Add specialized Hearts query to avoid two roundtrips to database
-  const chorePenalties = (await Admin.getVotingResidents(houseId, now))
+  const chorePenalties = (await Admin.getResidents(houseId, now))
     .map(resident => exports.addChorePenalty(houseId, resident.slackId, now));
 
   return (await Promise.all(chorePenalties)).flat();
@@ -654,7 +650,7 @@ exports.getChoreStats = async function (residentId, startTime, endTime) {
 };
 
 exports.getHouseChoreStats = async function (houseId, startTime, endTime) {
-  const residents = await Admin.getVotingResidents(houseId, endTime);
+  const residents = await Admin.getResidents(houseId, endTime);
   const choreStats = await Promise.all(residents.map(async (r) => {
     const choreStats = await exports.getChoreStats(r.slackId, startTime, endTime);
     return { residentId: r.slackId, ...choreStats };
@@ -730,16 +726,16 @@ exports.getChoreProposal = async function (proposalId) {
 };
 
 exports.getChoreProposalMinVotes = async function (houseId, now) {
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
-  return Math.ceil(choreProposalPct * votingResidents.length);
+  const residents = await Admin.getResidents(houseId, now);
+  return Math.ceil(choreProposalPct * residents.length);
 };
 
 exports.getSpecialChoreProposalMinVotes = async function (houseId, value, now) {
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
+  const residents = await Admin.getResidents(houseId, now);
 
   const numVotes = Math.ceil(value / specialChoreVoteIncrement);
-  const minVotes = Math.ceil(choreSpecialPctMin * votingResidents.length);
-  const maxVotes = Math.ceil(choreSpecialPctMax * votingResidents.length);
+  const minVotes = Math.ceil(choreSpecialPctMin * residents.length);
+  const maxVotes = Math.ceil(choreSpecialPctMax * residents.length);
   return Math.min(Math.max(numVotes, minVotes), maxVotes);
 };
 
@@ -788,7 +784,7 @@ exports.resolveChoreProposals = async function (houseId, now) {
 // Reset chore points
 
 exports.resetChorePoints = async function (houseId, now) {
-  const residents = await Admin.getVotingResidents(houseId, now);
+  const residents = await Admin.getResidents(houseId, now);
   const resetResidents = residents.map((r) => {
     return { houseId, slackId: r.slackId, activeAt: now, exemptAt: null }; // activeAt = now
   });

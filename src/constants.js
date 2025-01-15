@@ -19,3 +19,7 @@ exports.HEART_REVIVE = 5;
 exports.CHORES_CONF = 'choresConf';
 exports.HEARTS_CONF = 'heartsConf';
 exports.THINGS_CONF = 'thingsConf';
+
+exports.CHORES_IDX = 0;
+exports.HEARTS_IDX = 1;
+exports.THINGS_IDX = 2;

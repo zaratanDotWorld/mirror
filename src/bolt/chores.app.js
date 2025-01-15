@@ -10,7 +10,7 @@ const { App, LogLevel } = require('@slack/bolt');
 
 const { Admin, Polls, Chores } = require('../core/index');
 const { displayThreshold, breakMinDays, achievementWindow } = require('../config');
-const { YAY, DAY, CHORES_CONF } = require('../constants');
+const { YAY, DAY, CHORES_CONF, CHORES_IDX } = require('../constants');
 const { getMonthStart, getMonthEnd, shiftDate, getPrevMonthEnd, sleep } = require('../utils');
 
 const common = require('./common');
@@ -82,8 +82,8 @@ app.event('user_change', async ({ payload }) => {
 
   console.log(`chores user_change - ${user.team_id} x ${user.id}`);
 
-  await sleep(0 * 1000);
-  await common.syncWorkspaceMember(user.team_id, user, now);
+  await sleep(CHORES_IDX * 1000);
+  await common.pruneWorkspaceMember(user.team_id, user, now);
 });
 
 // Publish the app home
@@ -92,16 +92,14 @@ app.event('app_home_opened', async ({ body, event }) => {
   if (event.tab !== 'home') { return; }
 
   const { now, houseId, residentId } = common.beginHome('chores', body, event);
-  await Admin.activateResident(houseId, residentId, now);
 
   let view;
   if (choresConf.channel) {
     const monthStart = getMonthStart(now);
     const choreStats = await Chores.getChoreStats(residentId, monthStart, now);
     const workingResidentCount = await Chores.getWorkingResidentCount(houseId, now);
-    const exempt = await Admin.isExempt(residentId, now);
 
-    view = views.choresHomeView(choreStats, workingResidentCount, exempt);
+    view = views.choresHomeView(choreStats, workingResidentCount);
   } else {
     view = views.choresIntroView();
   }
@@ -157,7 +155,7 @@ app.command('/chores-sync', async ({ ack, command }) => {
   const commandName = '/chores-sync';
   const { now, houseId } = common.beginCommand(commandName, command);
 
-  const text = await common.syncWorkspaceMembers(app, choresConf.oauth, houseId, now);
+  const text = await common.pruneWorkspaceMembers(app, choresConf.oauth, houseId, now);
   await common.replyEphemeral(app, choresConf.oauth, command, text);
 
   await ack();
@@ -165,10 +163,9 @@ app.command('/chores-sync', async ({ ack, command }) => {
 
 app.command('/chores-channel', async ({ ack, command }) => {
   const commandName = '/chores-channel';
-  const { now, houseId } = common.beginCommand(commandName, command);
+  common.beginCommand(commandName, command);
 
   await common.setChannel(app, choresConf.oauth, CHORES_CONF, command);
-  await common.syncWorkspaceMembers(app, choresConf.oauth, houseId, now);
 
   await ack();
 });
@@ -193,8 +190,8 @@ app.command('/chores-stats', async ({ ack, command }) => {
   await ack();
 });
 
-app.command('/chores-exempt', async ({ ack, command }) => {
-  const commandName = '/chores-exempt';
+app.command('/chores-activate', async ({ ack, command }) => {
+  const commandName = '/chores-activate';
   const { now, houseId } = common.beginCommand(commandName, command);
 
   if (!(await common.isAdmin(app, choresConf.oauth, command.user_id))) {
@@ -202,47 +199,54 @@ app.command('/chores-exempt', async ({ ack, command }) => {
     return;
   }
 
-  const exemptResidents = (await Admin.getResidents(houseId, now))
-    .filter(r => r.exemptAt && r.exemptAt <= now);
+  const residents = await Admin.getResidents(houseId, now);
 
-  const view = views.choresExemptView(exemptResidents);
+  const view = views.choresActivateView(residents);
   await common.openView(app, choresConf.oauth, command.trigger_id, view);
 
   await ack();
 });
 
-app.view('chores-exempt-callback', async ({ ack, body }) => {
-  const actionName = 'chores-exempt-callback';
+app.view('chores-activate-callback', async ({ ack, body }) => {
+  await ack({ response_action: 'clear' });
+
+  const actionName = 'chores-activate-callback';
   const { now, houseId, residentId } = common.beginAction(actionName, body);
 
-  const action = common.getInputBlock(body, -2).action.selected_option.value;
-  const residentIds = common.getInputBlock(body, -1).residents.selected_conversations;
+  const activate = common.getInputBlock(body, -3).action.selected_option.value === 'true';
+  const selectAll = common.getInputBlock(body, -2).select_all.selected_options.length > 0;
 
-  const residentText = residentIds.map(residentId => `<@${residentId}>`).join(' and ');
+  let residentIds;
+  let residentsText;
+
+  if (selectAll) {
+    // Exclude bots and deleted users
+    residentIds = (await common.getWorkspaceMembers(app, choresConf.oauth))
+      .filter(member => !member.deleted)
+      .map(member => member.id);
+
+    residentsText = `all ${residentIds.length} residents`;
+  } else {
+    residentIds = common.getInputBlock(body, -1).residents.selected_conversations;
+
+    residentsText = residentIds.map(residentId => `<@${residentId}>`).join(' and ');
+  }
 
   let text;
 
-  switch (action) {
-    case 'exempt':
-      for (const residentId of residentIds) {
-        await Admin.exemptResident(houseId, residentId, now);
-      }
-      text = `Exempted ${residentText} :fire:`;
-      break;
-    case 'unexempt':
-      for (const residentId of residentIds) {
-        await Admin.unexemptResident(houseId, residentId, now);
-      }
-      text = `Unexempted ${residentText} :fire:`;
-      break;
-    default:
-      console.log('No match found!');
-      return;
+  if (activate) {
+    for (const residentId of residentIds) {
+      await common.activateResident(houseId, residentId, now);
+    }
+    text = `Activated ${residentsText || 'nobody'} :fire:`;
+  } else {
+    for (const residentId of residentIds) {
+      await common.deactivateResident(houseId, residentId);
+    }
+    text = `Deactivated ${residentsText || 'nobody'} :ice_cube:`;
   }
 
   await postEphemeral(residentId, text);
-
-  await ack();
 });
 
 app.command('/chores-reset', async ({ ack, command }) => {
@@ -519,8 +523,8 @@ app.view('chores-gift-callback', async ({ ack, body }) => {
   const points = common.getInputBlock(body, 3).points.value;
   const circumstance = common.getInputBlock(body, 4).circumstance.value;
 
-  if (await Admin.isExempt(recipientId, now)) {
-    const text = `<@${recipientId}> is exempt and cannot earn points :confused:`;
+  if (!(await Admin.isActive(recipientId, now))) {
+    const text = `<@${recipientId}> is not active and cannot earn points :confused:`;
     await postEphemeral(residentId, text);
   } else if (points > currentBalance) {
     const text = 'You can\'t gift more points than you have! :face_with_monocle:';

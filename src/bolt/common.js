@@ -177,31 +177,39 @@ exports.setChannel = async function (app, oauth, confName, command) {
   await exports.replyEphemeral(app, oauth, command, text);
 };
 
-exports.syncWorkspaceMembers = async function (app, oauth, houseId, now) {
-  const { members } = await app.client.users.list({ token: oauth.bot.token });
+exports.activateResident = async function (houseId, residentId, now) {
+  await Admin.activateResident(houseId, residentId, now);
+  await Hearts.initialiseResident(houseId, residentId, now);
+};
 
-  for (const member of members) {
-    await exports.syncWorkspaceMember(houseId, member, now);
+exports.deactivateResident = async function (houseId, residentId) {
+  await Admin.deactivateResident(houseId, residentId);
+};
+
+exports.getWorkspaceMembers = async function (app, oauth) {
+  const { members } = await app.client.users.list({ token: oauth.bot.token });
+  return members.filter(member => !(member.is_bot || member.id === SLACKBOT));
+};
+
+exports.pruneWorkspaceMembers = async function (app, oauth, houseId, now) {
+  for (const member of (await exports.getWorkspaceMembers(app, oauth))) {
+    await exports.pruneWorkspaceMember(houseId, member);
   }
 
   const residents = await Admin.getResidents(houseId, now);
-  return `Synced workspace with ${residents.length} active residents`;
+  return `Pruned workspace with ${residents.length} active residents`;
 };
 
-exports.syncWorkspaceMember = async function (houseId, member, now) {
-  if (!member.is_bot && member.id !== SLACKBOT) {
-    if (member.deleted) {
-      await Admin.deactivateResident(houseId, member.id);
-    } else {
-      await Admin.activateResident(houseId, member.id, now);
-      await Hearts.initialiseResident(houseId, member.id, now);
-    }
+exports.pruneWorkspaceMember = async function (houseId, member) {
+  if (member.deleted) {
+    return exports.deactivateResident(houseId, member.id);
   }
 };
 
 exports.syncWorkspaceChannels = async function (app, oauth) {
-  const { channels: botChannels } = await app.client.users.conversations({ token: oauth.bot.token });
-  const { channels: workspaceChannels } = await app.client.conversations.list({ token: oauth.bot.token, exclude_archived: true });
+  const token = oauth.bot.token;
+  const { channels: botChannels } = await app.client.users.conversations({ token });
+  const { channels: workspaceChannels } = await app.client.conversations.list({ token, exclude_archived: true });
 
   const botChannelIds = botChannels
     .map(channel => channel.id);
@@ -250,8 +258,8 @@ exports.updateVoteCounts = async function (app, oauth, body, action) {
   const channelId = body.channel.id;
   const residentId = body.user.id;
 
-  if (await Admin.isExempt(residentId, now)) {
-    const text = ':warning: Exempt residents are not allowed to vote :warning:';
+  if (!(await Admin.isActive(residentId, now))) {
+    const text = ':warning: Inactive residents are not allowed to vote :warning:';
     await exports.postEphemeral(app, oauth, channelId, residentId, text);
     return;
   }
@@ -374,13 +382,16 @@ exports.blockActions = function (elements) {
   return { type: 'actions', elements };
 };
 
-exports.blockInput = function (label, element) {
-  return { type: 'input', label: exports.blockPlaintext(label), element };
+exports.blockInput = function (label, element, optional = false) {
+  return { type: 'input', label: exports.blockPlaintext(label), element, optional };
 };
 
 exports.blockOptionGroup = function (label, options) {
   return { label: exports.blockPlaintext(label), options };
 };
+
+// Show only human users in multi_conversations_select
+exports.userFilter = { include: [ 'im' ], exclude_bot_users: true };
 
 exports.CLOSE = exports.blockPlaintext('Cancel');
 exports.BACK = exports.blockPlaintext('Back');

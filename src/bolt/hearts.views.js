@@ -50,19 +50,19 @@ _For more details on *Hearts* functionality, read the <${DOCS_URL}|manual>._
   };
 };
 
-exports.heartsHomeView = function (numHearts, maxHearts, exempt) {
+exports.heartsHomeView = function (isActive, numHearts, maxHearts) {
   const header = 'Welcome to Hearts';
   const textA = `We use *<${DOCS_URL}|Hearts>* to keep each other accountable.\n\n` +
     'Everyone starts with *5 hearts*. ' +
     'We lose hearts when we fail to uphold our commitments, ' +
     'and we regain hearts *over time* or by earning *karma* :sparkles:';
-  const textB = (exempt)
-    ? '*You are exempt from hearts!* :balloon:'
-    : `You have *${numHearts} / ${maxHearts}* hearts: ${exports.heartEmoji(numHearts)}`;
+  const textB = (isActive)
+    ? `You have *${numHearts} / ${maxHearts}* hearts: ${exports.heartEmoji(numHearts)}`
+    : '*You are exempt from hearts!* :balloon:';
 
   const actions = [];
   actions.push(common.blockButton('hearts-board', ':two_hearts: See hearts'));
-  if (!exempt) {
+  if (isActive) {
     actions.push(common.blockButton('hearts-karma', ':sparkles: Give karma'));
     actions.push(common.blockButton('hearts-challenge', ':fencer: Settle a dispute'));
   }
@@ -83,9 +83,9 @@ exports.heartsHomeView = function (numHearts, maxHearts, exempt) {
 
 // Challenge flow
 
-exports.heartsChallengeView = function (numVotingResidents) {
-  const initialQuorum = Math.ceil(numVotingResidents * heartsMinPctInitial);
-  const criticalQuorum = Math.ceil(numVotingResidents * heartsMinPctCritical);
+exports.heartsChallengeView = function (numResidents) {
+  const initialQuorum = Math.ceil(numResidents * heartsMinPctInitial);
+  const criticalQuorum = Math.ceil(numResidents * heartsMinPctCritical);
   const resolutionUrl = 'https://docs.chorewheel.zaratan.world/en/latest/practices/conflict-resolution.html';
 
   const header = 'Resolve a dispute';

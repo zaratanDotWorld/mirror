@@ -117,7 +117,7 @@ Basic Functionality
   :align: center
 
 The Chores home page is the chores dashboard.
-On the home page, folks can see their current and owed points for the month, as well as how many people are around that day (i.e. not exempt and not on break).
+On the home page, folks can see their current and owed points for the month, as well as how many people are around that day (i.e. active and not on break).
 The app home is also the entryway into the basic functionality, described below:
 
 :guilabel:`Claim a chore`
@@ -222,10 +222,6 @@ Most people will not need to know about these commands to use Chores.
   .. warning::
 
     A channel **must** be set for the app to work.
-
-``/chores-exempt`` \*
-  The ``/chores-exempt`` command is used to mark certain users as "exempt" from chores, i.e. to indicate that someone in the workspace is not actively present in the house and should not be considered for the purposes of issuing points and voting.
-  In the past this has been used to exempt someone who took a four-month leave of absence, and to exempt an admin account belonging to someone not living in the house.
 
 ``/chores-reset`` \*
   The ``/chores-reset`` command is used to reset chore points.

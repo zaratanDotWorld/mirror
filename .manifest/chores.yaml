@@ -22,10 +22,6 @@ features:
       url: https://chores.mirror.zaratan.world/slack/events
       description: Show more details about monthly chores
       should_escape: false
-    - command: /chores-exempt
-      url: https://chores.mirror.zaratan.world/slack/events
-      description: Exempt residents from chores
-      should_escape: false
     - command: /chores-reset
       url: https://chores.mirror.zaratan.world/slack/events
       description: Reset chore points

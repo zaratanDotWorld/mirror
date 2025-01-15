@@ -7,7 +7,7 @@ if (process.env.NODE_ENV === 'production') {
 const { App, LogLevel } = require('@slack/bolt');
 
 const { Admin, Polls, Hearts } = require('../core/index');
-const { YAY, DAY, HEARTS_CONF } = require('../constants');
+const { YAY, DAY, HEARTS_CONF, HEARTS_IDX } = require('../constants');
 const { sleep } = require('../utils');
 
 const common = require('./common');
@@ -80,8 +80,8 @@ app.event('user_change', async ({ payload }) => {
 
   console.log(`hearts user_change - ${user.team_id} x ${user.id}`);
 
-  await sleep(1 * 1000);
-  await common.syncWorkspaceMember(user.team_id, user, new Date());
+  await sleep(HEARTS_IDX * 1000);
+  await common.pruneWorkspaceMember(user.team_id, user, new Date());
 });
 
 app.event('channel_created', async ({ payload }) => {
@@ -119,16 +119,14 @@ app.event('app_home_opened', async ({ body, event }) => {
   if (event.tab !== 'home') { return; }
 
   const { now, houseId, residentId } = common.beginHome('hearts', body, event);
-  await Admin.activateResident(houseId, residentId, now);
-  await Hearts.initialiseResident(houseId, residentId, now);
 
   let view;
   if (heartsConf.channel) {
+    const isActive = await Admin.isActive(residentId, now);
     const hearts = await Hearts.getHearts(residentId, now);
     const maxHearts = await Hearts.getResidentMaxHearts(residentId, now);
-    const exempt = await Admin.isExempt(residentId, now);
 
-    view = views.heartsHomeView(hearts || 0, maxHearts, exempt);
+    view = views.heartsHomeView(isActive, hearts || 0, maxHearts);
   } else {
     view = views.heartsIntroView();
   }
@@ -188,7 +186,7 @@ app.command('/hearts-sync', async ({ ack, command }) => {
 
   const text = (command.text === 'channels')
     ? await common.syncWorkspaceChannels(app, heartsConf.oauth)
-    : await common.syncWorkspaceMembers(app, heartsConf.oauth, houseId, now);
+    : await common.pruneWorkspaceMembers(app, heartsConf.oauth, houseId, now);
 
   await common.replyEphemeral(app, heartsConf.oauth, command, text);
 });
@@ -197,10 +195,9 @@ app.command('/hearts-channel', async ({ ack, command }) => {
   await ack();
 
   const commandName = '/hearts-channel';
-  const { now, houseId } = common.beginCommand(commandName, command);
+  common.beginCommand(commandName, command);
 
   await common.setChannel(app, heartsConf.oauth, HEARTS_CONF, command);
-  await common.syncWorkspaceMembers(app, heartsConf.oauth, houseId, now);
 });
 
 // Challenge flow
@@ -211,9 +208,9 @@ app.action('hearts-challenge', async ({ ack, body }) => {
   const actionName = 'hearts-challenge';
   const { now, houseId } = common.beginAction(actionName, body);
 
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
+  const residents = await Admin.getResidents(houseId, now);
 
-  const view = views.heartsChallengeView(votingResidents.length);
+  const view = views.heartsChallengeView(residents.length);
   await common.openView(app, heartsConf.oauth, body.trigger_id, view);
 });
 
@@ -229,8 +226,8 @@ app.view('hearts-challenge-callback', async ({ ack, body }) => {
 
   const unresolvedChallenges = await Hearts.getUnresolvedChallenges(houseId, challengeeId);
 
-  if (await Admin.isExempt(challengeeId, now)) {
-    const text = `<@${challengeeId}> is exempt and cannot be challenged :weary:`;
+  if (!(await Admin.isActive(challengeeId, now))) {
+    const text = `<@${challengeeId}> is not active and cannot be challenged :weary:`;
     await postEphemeral(residentId, text);
   } else if (unresolvedChallenges.length) {
     const text = `<@${challengeeId}> is already being challenged!`;

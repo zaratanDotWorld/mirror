@@ -255,9 +255,9 @@ exports.resolveThingProposals = async function (houseId, now) {
 // Utils
 
 exports.getThingBuyMinVotes = async function (houseId, boughtBy, thingId, price, now) {
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
-  const maxVotes = Math.ceil(thingsMaxPct * votingResidents.length);
-  const minVotesSpecial = Math.ceil(thingsMinPctSpecial * votingResidents.length);
+  const residents = await Admin.getResidents(houseId, now);
+  const maxVotes = Math.ceil(thingsMaxPct * residents.length);
+  const minVotesSpecial = Math.ceil(thingsMinPctSpecial * residents.length);
   const minVotesScaled = Math.ceil(Math.abs(price) / thingsMinVotesScalar);
 
   const minVotes = (thingId)
@@ -269,6 +269,6 @@ exports.getThingBuyMinVotes = async function (houseId, boughtBy, thingId, price,
 };
 
 exports.getThingProposalMinVotes = async function (houseId, now) {
-  const votingResidents = await Admin.getVotingResidents(houseId, now);
-  return Math.ceil(thingsProposalPct * votingResidents.length);
+  const residents = await Admin.getResidents(houseId, now);
+  return Math.ceil(thingsProposalPct * residents.length);
 };
