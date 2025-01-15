@@ -10,7 +10,7 @@ const { App, LogLevel } = require('@slack/bolt');
 
 const { Admin, Polls, Chores } = require('../core/index');
 const { displayThreshold, breakMinDays, achievementWindow } = require('../config');
-const { YAY, DAY, CHORES_CONF } = require('../constants');
+const { YAY, DAY, CHORES_CONF, SLACKBOT } = require('../constants');
 const { getMonthStart, getMonthEnd, shiftDate, getPrevMonthEnd, sleep } = require('../utils');
 
 const common = require('./common');
@@ -189,6 +189,66 @@ app.command('/chores-stats', async ({ ack, command }) => {
   await common.openView(app, choresConf.oauth, command.trigger_id, view);
 
   await ack();
+});
+
+app.command('/chores-activate', async ({ ack, command }) => {
+  const commandName = '/chores-activate';
+  const { now, houseId } = common.beginCommand(commandName, command);
+
+  if (!(await common.isAdmin(app, choresConf.oauth, command.user_id))) {
+    await common.replyAdminOnly(app, choresConf.oauth, command);
+    return;
+  }
+
+  const residents = await Admin.getResidents(houseId, now);
+
+  const view = views.choresActivateView(residents);
+  await common.openView(app, choresConf.oauth, command.trigger_id, view);
+
+  await ack();
+});
+
+app.view('chores-activate-callback', async ({ ack, body }) => {
+  await ack({ response_action: 'clear' });
+
+  const actionName = 'chores-activate-callback';
+  const { now, houseId, residentId } = common.beginAction(actionName, body);
+
+  const activate = common.getInputBlock(body, -3).action.selected_option.value === 'true';
+  const selectAll = common.getInputBlock(body, -2).select_all.selected_options.length > 0;
+
+  let residentIds;
+  let residentsText;
+
+  if (selectAll) {
+    // Exclude bots and deleted users
+    residentIds = (await app.client.users.list({ token: choresConf.oauth.bot.token }))
+      .members
+      .filter(member => !(member.is_bot || member.id === SLACKBOT || member.deleted))
+      .map(member => member.id);
+
+    residentsText = `all ${residentIds.length} residents`;
+  } else {
+    residentIds = common.getInputBlock(body, -1).residents.selected_conversations;
+
+    residentsText = residentIds.map(residentId => `<@${residentId}>`).join(' and ');
+  }
+
+  let text;
+
+  if (activate) {
+    for (const residentId of residentIds) {
+      await Admin.activateResident(houseId, residentId, now);
+    }
+    text = `Activated ${residentsText || 'nobody'} :fire:`;
+  } else {
+    for (const residentId of residentIds) {
+      await Admin.deactivateResident(houseId, residentId);
+    }
+    text = `Deactivated ${residentsText || 'nobody'} :ice_cube:`;
+  }
+
+  await postEphemeral(residentId, text);
 });
 
 app.command('/chores-reset', async ({ ack, command }) => {

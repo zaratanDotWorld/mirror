@@ -374,13 +374,16 @@ exports.blockActions = function (elements) {
   return { type: 'actions', elements };
 };
 
-exports.blockInput = function (label, element) {
-  return { type: 'input', label: exports.blockPlaintext(label), element };
+exports.blockInput = function (label, element, optional = false) {
+  return { type: 'input', label: exports.blockPlaintext(label), element, optional };
 };
 
 exports.blockOptionGroup = function (label, options) {
   return { label: exports.blockPlaintext(label), options };
 };
+
+// Show only human users in multi_conversations_select
+exports.userFilter = { include: [ 'im' ], exclude_bot_users: true };
 
 exports.CLOSE = exports.blockPlaintext('Cancel');
 exports.BACK = exports.blockPlaintext('Back');

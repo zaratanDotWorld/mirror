@@ -6,6 +6,7 @@ features:
   app_home:
     home_tab_enabled: true
     messages_tab_enabled: false
+    messages_tab_read_only_enabled: true
   bot_user:
     display_name: Chores-dev
     always_online: true
@@ -22,6 +23,10 @@ features:
       url: https://zaratan.ngrok.io/slack/events
       description: Show more details about monthly chores
       should_escape: false
+    - command: /chores-activate
+      url: https://zaratan.ngrok.io/slack/events
+      description: Activate residents for chores
+      should_escape: false
     - command: /chores-reset
       url: https://zaratan.ngrok.io/slack/events
       description: Reset chore points
@@ -35,8 +40,8 @@ oauth_config:
       - channels:join
       - chat:write
       - commands
-      - groups:history
       - users:read
+      - groups:history
 settings:
   event_subscriptions:
     request_url: https://zaratan.ngrok.io/slack/events
